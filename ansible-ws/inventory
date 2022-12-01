@@ -1,0 +1,5 @@
+[aws_k8s_master_host]
+13.114.182.5
+
+[aws_k8s_worker_host]
+3.112.248.18

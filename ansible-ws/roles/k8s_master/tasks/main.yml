@@ -1,0 +1,92 @@
+---
+# tasks file for k8s_master
+- name: Add Docker GPG apt Key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: Add Docker Repository
+  apt_repository:
+    repo: deb https://download.docker.com/linux/ubuntu focal stable
+    state: present
+
+- name: Add K8s GPG apt Key
+  apt_key:
+    url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+    state: present
+
+- name: Add k8s Repository
+  apt_repository:
+    repo: deb http://apt.kubernetes.io/ kubernetes-xenial main 
+
+- name: Install required system packages
+  apt:
+    pkg:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - software-properties-common
+      - python3-pip
+      - virtualenv
+      - python3-setuptools
+    state: latest
+    update_cache: true
+- name: Update apt and install docker-ce and docker-compose
+  apt:
+    pkg:
+      - docker
+      - docker.io
+      - docker-compose
+    state: latest
+    update_cache: true
+
+- name: Install Docker Module for Python
+  pip:
+    name: docker
+  
+
+
+- name: Installing kubeadm & iproute-tc on Master Node
+  package:
+    name: 
+      - kubeadm
+      - kubelet
+      - kubectl
+    state: present
+
+- name: Staring & enabling Docker & kubelet on Master Node
+  service:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+  loop: "{{ service_names }}"
+
+- name: Restart docker on Master Node
+  service:
+    name: docker
+    state: restarted
+- name: Restart Kubelet on Master Node
+  service:
+    name: kubelet
+    state: restarted
+
+- name: Initializing k8s cluster
+  command: sudo kubeadm init --pod-network-cidr=10.244.0.0/16 --ignore-preflight-errors=NumCPU --ignore-preflight-errors=Mem
+
+- name: Setting up kubectl on Master Node and installing Pod network
+  become: true
+  become_user: ubuntu
+  shell:
+    cmd: |
+      mkdir -p $HOME/.kube
+      sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+      sudo chown $(id -u):$(id -g) $HOME/.kube/config
+      kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+
+
+- name: Creating token for Slave
+  command: kubeadm token create  --print-join-command
+  register: token
+
+- name: Cleaning Caches on RAM
+  shell: echo 3 > /proc/sys/vm/drop_caches
